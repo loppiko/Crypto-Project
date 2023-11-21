@@ -10,6 +10,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding as asymetric_padding
 
+# Passwords managment
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 #JSON
 import base64
 import json
@@ -87,13 +91,13 @@ def symmetricDecryption(iv, key, binary, fileSource):
 
 # asymetric algorythms (key operations)
 
-def saveAsymetricKey(private_key, savingFunction: None, fileSource: str):
+def saveAsymetricKey(private_key, savingFunction: None, fileSource: str, password):
     public_key = private_key.public_key()
 
     serialized_private = private_key.private_bytes(
         encoding = serialization.Encoding.PEM,
         format = serialization.PrivateFormat.PKCS8,
-        encryption_algorithm = serialization.NoEncryption()
+        encryption_algorithm = serialization.BestAvailableEncryption(password.encode("utf-8"))
     )
 
     serialized_public = public_key.public_bytes(
@@ -105,8 +109,8 @@ def saveAsymetricKey(private_key, savingFunction: None, fileSource: str):
     savingFunction(serialized_public, f"{fileSource}" + "public_key.pem")
 
 
-def readAsymetricPrivate_Key(readingFunction: None, fileSource: str = ""):
-    return serialization.load_pem_private_key(readingFunction(f"{fileSource}" + "private_key.pem"), password=None)
+def readAsymetricPrivate_Key(readingFunction: None, password, fileSource: str = ""):
+    return serialization.load_pem_private_key(readingFunction(f"{fileSource}" + "private_key.pem"), password=password.encode("utf-8"), backend=default_backend())
 
 def readAsymetricPublic_key(readingFunction: None, fileSource: str):
     return serialization.load_pem_public_key(readingFunction(f"{fileSource}" + "public_key.pem"), backend=None)
@@ -164,9 +168,41 @@ def verifyDataSignature(array: list, public_key):
         )
 
 
-keysFolderSource: str = "credentials/"
-fileToEncrypt: str = "toEncrypt/e2.docx"
-signaturesFile: str = "credentials/signatures.json"
+# passwords managment
+
+class WrongPassword(Exception): pass
+
+def hash_password(password, salt):
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        iterations=256398,
+        length=32,
+        salt=salt,
+        backend=default_backend()
+    )
+    key = kdf.derive(password.encode())
+    return key
+
+
+def generate_new_credentials(password_hashmap, login, input_pass, salt):
+    password_hashmap[login] = {
+        "hashed_password": binaryIntoBase64(hash_password(input_pass, salt)),
+        "salt": binaryIntoBase64(salt)
+    }
+    return password_hashmap
+
+
+def check_credentials(password_hashmap, login, input_pass, salt):
+    return binaryIntoBase64(hash_password(input_pass, salt)) == password_hashmap[login]["hashed_password"]
+
+
+
+config = readJson("config.json")
+
+keysFolderSource = config["keys_folder_source"]
+fileToEncrypt = config["file_to_encrypt"]
+signaturesFile = config["signatures_file"]
+password_hashmap = readJson(f"{config['password_file']}")
 
 
 print("Choose mode: encryption (1) or decryption (2)")
@@ -176,11 +212,23 @@ while True:
     mode = input()
     
     if (mode == "1"): 
+        print("Input your login: ")
+        input_login = input()
+
+        print("Input your password: ")
+        input_pass = input()
+
         
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         public_key = private_key.public_key()
 
-        saveAsymetricKey(private_key, saveBin, keysFolderSource)
+        if (password_hashmap.get(input_login) is not None):
+            saveJson(generate_new_credentials(password_hashmap, input_login, input_pass, base64Intobinary(password_hashmap[input_login]["salt"])), f"{config['password_file']}")
+
+        else:
+            saveJson(generate_new_credentials(password_hashmap, input_login, input_pass, os.urandom(16)), config["password_file"])
+
+        saveAsymetricKey(private_key, saveBin, keysFolderSource, input_pass)
 
         symetric_key = os.urandom(32)
         iv = os.urandom(16)
@@ -198,7 +246,28 @@ while True:
 
 
     elif (mode == "2"): 
-        private_key = readAsymetricPrivate_Key(readBin, keysFolderSource)
+        print("Input your login: ")
+        input_login = input()
+
+        print("Input your password: ")
+        input_pass = input()
+
+
+        try: 
+            if (not check_credentials(password_hashmap, input_login, input_pass, base64Intobinary(password_hashmap[input_login]["salt"]))): 
+                raise WrongPassword
+            else:
+                pass
+
+        except WrongPassword:
+            print(f"\npassword of user \'{input_login}\' does not match")
+            exit()
+        
+        except KeyError:
+            print(f"\n\'{input_login}\' does not exists in database")
+            exit()
+
+        private_key = readAsymetricPrivate_Key(readBin, input_pass, keysFolderSource)
         public_key = readAsymetricPublic_key(readBin, keysFolderSource)
 
         arrayWithSignatures = readJson(f"{signaturesFile}")

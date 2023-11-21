@@ -1,6 +1,6 @@
 {
     "keys_folder_source": "credentials/",
-    "file_to_encrypt": "toEncrypt/e2.docx",
+    "file_to_encrypt": "toEncrypt/1.svg",
     "signatures_file": "credentials/signatures.json",
     "password_file": "credentials/password.json"
 }
