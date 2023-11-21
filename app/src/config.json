@@ -1,0 +1,6 @@
+{
+    "keys_folder_source": "credentials/",
+    "file_to_encrypt": "toEncrypt/e2.docx",
+    "signatures_file": "credentials/signatures.json",
+    "password_file": "credentials/password.json"
+}
