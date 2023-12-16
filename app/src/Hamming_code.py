@@ -14,17 +14,15 @@ def encode_hamming_code_4_into_7(bin_0_1_blocks: list[list[bytes]], error_functi
 
     encoded_data = []
 
+    G = ([
+        [1, 1, 1, 0, 0, 0, 0],
+        [1, 0, 0, 1, 1, 0, 0],
+        [0, 1, 0, 1, 0, 1, 0],
+        [1, 1, 0, 1, 0, 0, 1],
+    ])
+
     for block in bin_0_1_blocks:
-        simple_block = []
-        simple_block.extend(
-            [ 
-                block[0] ^ block[1] ^ block[3],
-                block[0] ^ block[2] ^ block[3],
-                block[0],
-                block[1] ^ block[2] ^ block[3]
-            ]
-        )
-        for bit in block[1:]: simple_block.append(bit)
+        simple_block = np.dot(np.array(block), np.array(G)) % 2
 
         if (error_function is None): encoded_data.append(simple_block)
         else: encoded_data.append(error_function(simple_block))
@@ -45,11 +43,19 @@ def decode_hamming_code_4_into_7(hamming_data: list[list[bytes]]) -> list[list[b
     recovered_data = []
     
     corrected_errors = 0
-    unrecoverable_errors = 0
+
+    H = np.array([
+        [0, 0, 1],
+        [0, 1, 0],
+        [0, 1, 1],
+        [1, 0, 0],
+        [1, 0, 1],
+        [1, 1, 0],
+        [1, 1, 1]
+        ])
 
     P1_INDEX, P2_INDEX, P4_INDEX = 0, 1, 3
 
-    
 
     for block in hamming_data:
         corrected_block = block
@@ -63,22 +69,18 @@ def decode_hamming_code_4_into_7(hamming_data: list[list[bytes]]) -> list[list[b
         ]
 
         if (new_parity_bits != old_parity_bits):
-            oP1, oP2, oP4 = old_parity_bits
-            nP1, nP2, nP4 = new_parity_bits
+            error_index_bin = (np.dot(np.array(corrected_block), H)) % 2
+            error_index = int(''.join(map(str, error_index_bin)), 2) - 1
 
-            if (np.all([(oP1 != nP1, oP2 != nP2, oP4 != nP4)])): error_index = 6
-            elif (np.all([(oP2 != nP2, oP4 != nP4)])): error_index = 5
-            elif (np.all([(oP1 != nP1, oP2 != nP2)])): error_index = 2
-            else: error_index = 4
 
             corrected_block[error_index] = (1 - block[error_index])
             
-            if (old_parity_bits == calculate_parity_bits(corrected_block)): corrected_errors += 1
-            else: unrecoverable_errors += 1
+            if (int(''.join(map(str, (np.dot(np.array(corrected_block), H) % 2))), 2) == 0): corrected_errors += 1
 
 
         recovered_data.append(corrected_block)
 
+    unrecoverable_errors = len(hamming_data) - corrected_errors
     if (unrecoverable_errors > 0): print("\n--- OUTPUT FILE CONTAINS ERRORS ---")
     print(f"\nCorrected error statistic: \n\tCorrected: {corrected_errors}\n\tUnrecoverable: {unrecoverable_errors}\n")
 
@@ -108,8 +110,8 @@ def merge_4_bit_blocks_into_8_bits(bin_0_1_blocks: list[list[bytes]]) -> list[by
 
 
 def encourage_error_function(block):
-    # Error cannot occur in parity bits, because then it is irreparable
-    potential_index_errors = [2, 4, 5, 6]
+    # Error can occur only once on 1 block
+    potential_index_errors = [elem for elem in range(0, 7)]
     error_index = potential_index_errors[random.randint(0, len(potential_index_errors) - 1)]
     block[error_index] = 1 - block[error_index]
     return block
