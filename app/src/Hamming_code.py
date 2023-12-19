@@ -42,6 +42,7 @@ def decode_hamming_code_4_into_7(hamming_data: list[list[bytes]]) -> list[list[b
 
     recovered_data = []
     
+    total_errors = 0
     corrected_errors = 0
 
     H = np.array([
@@ -69,6 +70,7 @@ def decode_hamming_code_4_into_7(hamming_data: list[list[bytes]]) -> list[list[b
         ]
 
         if (new_parity_bits != old_parity_bits):
+            total_errors += 1
             error_index_bin = (np.dot(np.array(corrected_block), H)) % 2
             error_index = int(''.join(map(str, error_index_bin)), 2) - 1
 
@@ -80,7 +82,7 @@ def decode_hamming_code_4_into_7(hamming_data: list[list[bytes]]) -> list[list[b
 
         recovered_data.append(corrected_block)
 
-    unrecoverable_errors = len(hamming_data) - corrected_errors
+    unrecoverable_errors = total_errors - corrected_errors
     if (unrecoverable_errors > 0): print("\n--- OUTPUT FILE CONTAINS ERRORS ---")
     print(f"\nCorrected error statistic: \n\tCorrected: {corrected_errors}\n\tUnrecoverable: {unrecoverable_errors}\n")
 
