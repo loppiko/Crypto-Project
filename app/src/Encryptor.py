@@ -278,7 +278,10 @@ if __name__ == "__main__":
             saveJson(createDataSignature(arrayWithSignatures, private_key), f"{signaturesFile}")
 
 
-            symmetricEncryption(iv, symetric_key, readBin(fileToEncrypt), fileToEncrypt, apply_hamming_code)
+            import Hamming_code
+
+            # symmetricEncryption(iv, symetric_key, readBin(fileToEncrypt), fileToEncrypt, apply_hamming_code) # without errors
+            symmetricEncryption(iv, symetric_key, readBin(fileToEncrypt), fileToEncrypt, apply_hamming_code, Hamming_code.encourage_error_function) # with errors
 
 
 
@@ -312,8 +315,9 @@ if __name__ == "__main__":
 
             iv = readBin(f"{keysFolderSource}" + "iv.bin")
             symetric_key = asymetric_decryption(private_key, readBin(f"{keysFolderSource}" + "key.bin"))
-            symmetricDecryption(iv, symetric_key, readBin(fileToEncrypt), fileToEncrypt, restore_data_from_hamming_code)
 
+
+            symmetricDecryption(iv, symetric_key, readBin(fileToEncrypt), fileToEncrypt, restore_data_from_hamming_code)            
 
 
         if (mode == "1" or mode == "2"): break
